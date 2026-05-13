@@ -3,4 +3,3 @@ streamlit-gsheets
 streamlit-option-menu
 plotly
 pandas
-numpy
