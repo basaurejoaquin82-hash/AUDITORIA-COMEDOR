@@ -4,5 +4,3 @@ streamlit-option-menu
 plotly
 pandas
 numpy
-gspread
-oauth2client
