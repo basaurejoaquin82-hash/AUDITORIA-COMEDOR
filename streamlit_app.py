@@ -1,10 +1,8 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
-from st_aggrid import AgGrid, GridOptionsBuilder
 from streamlit_option_menu import option_menu
 import pandas as pd
 import plotly.express as px
-import numpy as np
 
 # =========================================================
 # CONFIGURACIÓN GENERAL
@@ -13,8 +11,7 @@ import numpy as np
 st.set_page_config(
     page_title="Sistema de Auditoría Gastronómica",
     page_icon="⚖️",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
 # =========================================================
@@ -52,8 +49,7 @@ st.markdown("""
 /* SIDEBAR */
 
 section[data-testid="stSidebar"] {
-    background-color: #FFFFFF;
-    border-right: 1px solid #EAEAEA;
+    background-color: white;
 }
 
 /* CARDS */
@@ -69,13 +65,6 @@ section[data-testid="stSidebar"] {
 
 .metric-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 8px 18px rgba(0,0,0,0.10);
-}
-
-/* TEXTO */
-
-html, body, [class*="css"] {
-    font-family: 'Segoe UI', sans-serif;
 }
 
 /* MÉTRICAS */
@@ -83,22 +72,16 @@ html, body, [class*="css"] {
 [data-testid="stMetricValue"] {
     font-size: 30px;
     font-weight: 800;
-    color: #111111;
 }
 
 [data-testid="stMetricLabel"] {
-    font-size: 15px;
     font-weight: 600;
 }
 
-/* BOTONES */
+/* FUENTE */
 
-.stButton>button {
-    border-radius: 10px;
-    border: none;
-    background-color: #1A4B84;
-    color: white;
-    font-weight: 600;
+html, body, [class*="css"] {
+    font-family: 'Segoe UI', sans-serif;
 }
 
 </style>
@@ -142,7 +125,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MENU SUPERIOR
+# MENÚ SUPERIOR
 # =========================================================
 
 selected = option_menu(
@@ -159,7 +142,7 @@ selected = option_menu(
         "search",
         "graph-up"
     ],
-    orientation="horizontal",
+    orientation="horizontal"
 )
 
 # =========================================================
@@ -179,11 +162,11 @@ try:
 
 except Exception as e:
 
-    st.error(f"Error cargando Google Sheets: {e}")
+    st.error(f"Error conectando Google Sheets: {e}")
     st.stop()
 
 # =========================================================
-# LIMPIEZA
+# LIMPIEZA DE DATOS
 # =========================================================
 
 df['Marca temporal'] = pd.to_datetime(
@@ -206,7 +189,7 @@ if 'Principal/minutas' in df.columns:
     ]
 
 # =========================================================
-# SIDEBAR FILTROS
+# FILTROS SIDEBAR
 # =========================================================
 
 with st.sidebar:
@@ -228,14 +211,8 @@ with st.sidebar:
         if 'Sector' in df.columns else []
     )
 
-    platos = st.multiselect(
-        "Platos",
-        sorted(df['Principal/minutas'].dropna().unique())
-        if 'Principal/minutas' in df.columns else []
-    )
-
 # =========================================================
-# FILTROS
+# FILTRADO
 # =========================================================
 
 df_f = df.copy()
@@ -251,19 +228,15 @@ if sectores and 'Sector' in df_f.columns:
 
     df_f = df_f[df_f['Sector'].isin(sectores)]
 
-if platos and 'Principal/minutas' in df_f.columns:
-
-    df_f = df_f[df_f['Principal/minutas'].isin(platos)]
-
 # =========================================================
-# BUSCADOR
+# BUSCADOR GLOBAL
 # =========================================================
 
 st.markdown("### 🔎 Buscador Inteligente")
 
 busqueda = st.text_input(
     "",
-    placeholder="Buscar funcionario, sector, cargo o plato..."
+    placeholder="Buscar funcionario, sector o plato..."
 )
 
 if busqueda:
@@ -317,13 +290,11 @@ with c3:
 
     st.markdown('<div class="metric-card">', unsafe_allow_html=True)
 
-    if not df_f.empty and 'Principal/minutas' in df_f.columns:
-
-        top_plato = df_f['Principal/minutas'].mode()[0]
-
-    else:
-
-        top_plato = "-"
+    top_plato = (
+        df_f['Principal/minutas'].mode()[0]
+        if not df_f.empty and 'Principal/minutas' in df_f.columns
+        else "-"
+    )
 
     st.metric(
         "Plato Más Solicitado",
@@ -353,9 +324,7 @@ with c4:
 
 col1, col2 = st.columns(2)
 
-# =========================================================
 # PIE CHART
-# =========================================================
 
 with col1:
 
@@ -370,19 +339,14 @@ with col1:
             color_discrete_sequence=px.colors.sequential.Blues_r
         )
 
-        fig_pie.update_layout(
-            height=430,
-            paper_bgcolor='rgba(0,0,0,0)'
-        )
+        fig_pie.update_layout(height=420)
 
         st.plotly_chart(
             fig_pie,
             use_container_width=True
         )
 
-# =========================================================
-# EVOLUCIÓN
-# =========================================================
+# LINE CHART
 
 with col2:
 
@@ -401,12 +365,11 @@ with col2:
         markers=True
     )
 
-    fig_line.update_traces(line=dict(width=4))
-
-    fig_line.update_layout(
-        height=430,
-        paper_bgcolor='rgba(0,0,0,0)'
+    fig_line.update_traces(
+        line=dict(width=4)
     )
+
+    fig_line.update_layout(height=420)
 
     st.plotly_chart(
         fig_line,
@@ -414,7 +377,7 @@ with col2:
     )
 
 # =========================================================
-# TOP PLATOS
+# RANKING
 # =========================================================
 
 st.markdown("### 🏆 Ranking de Platos")
@@ -442,7 +405,6 @@ if 'Principal/minutas' in df_f.columns:
 
     fig_bar.update_layout(
         height=500,
-        paper_bgcolor='rgba(0,0,0,0)',
         yaxis=dict(categoryorder='total ascending')
     )
 
@@ -463,14 +425,14 @@ if 'Principal/minutas' in df_f.columns:
 
     if not conteo.empty:
 
-        plato_top = conteo.idxmax()
+        top = conteo.idxmax()
         cantidad = conteo.max()
 
         if cantidad > 20:
 
             st.error(
                 f"Consumo elevado detectado: "
-                f"{plato_top} ({cantidad} pedidos)"
+                f"{top} ({cantidad} pedidos)"
             )
 
         else:
@@ -480,67 +442,16 @@ if 'Principal/minutas' in df_f.columns:
             )
 
 # =========================================================
-# TABLA PROFESIONAL
+# TABLA
 # =========================================================
 
 st.markdown("### 📋 Trazabilidad Completa")
 
-gb = GridOptionsBuilder.from_dataframe(df_f)
-
-gb.configure_pagination(
-    paginationAutoPageSize=True
-)
-
-gb.configure_default_column(
-    sortable=True,
-    filter=True,
-    resizable=True
-)
-
-gridOptions = gb.build()
-
-AgGrid(
+st.dataframe(
     df_f,
-    gridOptions=gridOptions,
-    fit_columns_on_grid_load=True,
-    height=500,
-    theme="streamlit"
+    use_container_width=True,
+    height=500
 )
-
-# =========================================================
-# ANALÍTICA AVANZADA
-# =========================================================
-
-with st.expander("📊 Análisis Ejecutivo"):
-
-    colA, colB = st.columns(2)
-
-    with colA:
-
-        if 'Sector' in df_f.columns and not df_f.empty:
-
-            sector_top = (
-                df_f['Sector']
-                .value_counts()
-                .idxmax()
-            )
-
-            st.info(
-                f"Sector con mayor demanda: {sector_top}"
-            )
-
-    with colB:
-
-        if 'Marca temporal' in df_f.columns:
-
-            ultimo = (
-                df_f['Marca temporal']
-                .max()
-            )
-
-            st.success(
-                f"Última actualización: {ultimo}"
-            )
 
 # =========================================================
 # FOOTER
