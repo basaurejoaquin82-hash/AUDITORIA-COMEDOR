@@ -1,113 +1,131 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import datetime
 
-# 1. CONFIGURACIÓN DE PÁGINA (Estilo Ejecutivo)
-st.set_page_config(
-    page_title="Reporte de Auditoría - Casa Rosada",
-    page_icon="🇦🇷",
-    layout="wide"
-)
+# 1. CONFIGURACIÓN DE MARCA Y ESTILO
+st.set_page_config(page_title="Gestión Gastronómica - Casa Rosada", layout="wide")
 
-# Diseño estético con CSS (Colores: Azul noche, Dorado y Blanco)
+# CSS personalizado para replicar la imagen
 st.markdown("""
     <style>
-    .main { background-color: #f4f7f9; }
-    .stMetric { 
-        background-color: #ffffff; 
-        padding: 25px; 
-        border-radius: 15px; 
-        border-top: 5px solid #1a2a6c; 
+    /* Fondo general */
+    .stApp { background-color: #FDF2F2; }
+    
+    /* Sidebar personalizado */
+    [data-testid="stSidebar"] { background-color: #FCE4E4; border-right: 1px solid #E5E5E5; }
+    
+    /* Tarjetas (Cards) */
+    .main-card {
+        background-color: white;
+        padding: 20px;
+        border-radius: 15px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        border: 1px solid #F0F0F0;
+        margin-bottom: 20px;
     }
-    .date-header {
-        background-color: #1a2a6c;
-        color: white;
-        padding: 15px;
-        border-radius: 10px;
-        text-align: center;
-        margin-bottom: 25px;
-        font-size: 20px;
-        font-weight: bold;
+    
+    /* Títulos y textos */
+    h1, h2, h3 { color: #5D1224; font-family: 'Inter', sans-serif; }
+    .status-badge {
+        background-color: #FEF3C7; color: #92400E;
+        padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: bold;
     }
-    h1, h2 { color: #1a2a6c; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .critical-badge {
+        color: #B91C1C; font-weight: bold; font-size: 14px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. LOGIN
-st.sidebar.markdown("### 🔒 Acceso Seguro")
-password = st.sidebar.text_input("Contraseña Institucional", type="password")
+# 2. SIDEBAR (Navegación Institucional)
+with st.sidebar:
+    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Flag_of_Argentina.svg/1200px-Flag_of_Argentina.svg.png", width=50)
+    st.markdown("### **Casa Rosada**")
+    st.caption("Comedor Institucional")
+    st.markdown("---")
+    st.button("📊 Dashboard", use_container_width=True)
+    st.button("📅 Planificación", use_container_width=True)
+    st.button("📖 Recetas", use_container_width=True)
+    st.button("🍽️ Salad Bar", use_container_width=True)
+    st.button("⚙️ Configuración", use_container_width=True)
 
-if password == "1234":
-    url = "https://docs.google.com/spreadsheets/d/1lqX4uss9CdW-QUqPlaBnvWoMePzuaBQ-89cfu7cDi3A/edit#gid=0"
+# 3. CUERPO PRINCIPAL
+st.markdown("## Sistema de Planificación Gastronómica")
+st.caption("Dashboard Principal - Gestión y control del flujo gastronómico nacional")
+
+# Fila 1: Tarjetas de Resumen (KPIs)
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.markdown(f"""
+    <div class="main-card">
+        <p style='color: #6B7280; font-size: 14px;'>MENÚ DEL DÍA <span class="status-badge">ACTIVO</span></p>
+        <h3 style='margin: 0;'>Pollo al verdeo con puré rústico</h3>
+        <p style='font-size: 12px; color: #92400E;'>⭐ Recomendación del Chef</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+    st.markdown("""
+    <div class="main-card">
+        <p style='color: #6B7280; font-size: 14px;'>TICKETS HOY <span style='color: #059669;'>↗ +12%</span></p>
+        <h2 style='margin: 0;'>1,248</h2>
+        <p style='font-size: 12px; color: #6B7280;'>Meta diaria: 1,500</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col3:
+    st.markdown("""
+    <div class="main-card">
+        <p style='color: #6B7280; font-size: 14px;'>PRODUCCIÓN EST.</p>
+        <h2 style='margin: 0;'>850 kg</h2>
+        <div style='background-color: #E5E7EB; height: 8px; border-radius: 4px;'>
+            <div style='background-color: #5D1224; width: 65%; height: 100%; border-radius: 4px;'></div>
+        </div>
+        <p style='font-size: 12px; color: #6B7280; margin-top: 5px;'>En progreso</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col4:
+    st.markdown("""
+    <div class="main-card">
+        <p style='color: #6B7280; font-size: 14px;'>ALERTAS DE STOCK <span class="critical-badge">CRÍTICO</span></p>
+        <h2 style='margin: 0; color: #B91C1C;'>04</h2>
+        <p style='font-size: 12px; color: #6B7280;'>Insumos por debajo del mínimo</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Fila 2: Gráficos y Popularidad
+c_left, c_right = st.columns([2, 1])
+
+with c_left:
+    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+    st.markdown("### Consumo Semanal de Insumos")
+    # Simulamos el gráfico de la imagen
+    chart_data = pd.DataFrame({
+        'Día': ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
+        'Consumo': [40, 50, 30, 70, 55]
+    })
+    st.bar_chart(chart_data.set_index('Día'), color="#D6B6B6")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with c_right:
+    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+    st.markdown("### Popularidad Menús")
     
-    try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(spreadsheet=url, ttl="600")
-        
-        # Limpieza inicial
-        df['Marca temporal'] = pd.to_datetime(df['Marca temporal'], errors='coerce')
-        df = df.dropna(subset=['Marca temporal'])
-        
-        # Filtrado de "NO SOLICITA" (Limpieza total)
-        df = df[~df['Principal/minutas'].str.contains('NO SOLICITA', na=False, case=False)]
-        df = df[~df['Tostados / Medialunas / Chipa / Cuadraditos Dulces'].str.contains('NO SOLICITA', na=False, case=False)]
+    # Simulación de barras de progreso
+    def progress_bar(label, value, color):
+        st.write(f"{label} **{value}%**")
+        st.progress(value / 100)
 
-        # --- FILTRO DE FECHAS EN SIDEBAR ---
-        st.sidebar.markdown("---")
-        min_f, max_f = df['Marca temporal'].min().date(), df['Marca temporal'].max().date()
-        
-        st.sidebar.subheader("📅 Rango de Análisis")
-        rango = st.sidebar.date_input("Seleccione período:", value=(min_f, max_f), min_value=min_f, max_value=max_f)
+    progress_bar("Tradicional", 45, "#5D1224")
+    progress_bar("Vegetariano", 30, "#D4AF37")
+    progress_bar("Saludable (Fit)", 15, "#5D1224")
+    progress_bar("Celiacos / Otros", 10, "#5D1224")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-        if len(rango) == 2:
-            inicio, fin = rango
-            df_f = df[(df['Marca temporal'].dt.date >= inicio) & (df['Marca temporal'].dt.date <= fin)]
-            
-            # --- HEADER DE FECHAS PROLIJO ---
-            st.markdown(f"""<div class="date-header">📊 REPORTE DE CONSUMO: {inicio.strftime('%d/%m/%Y')} al {fin.strftime('%d/%m/%Y')}</div>""", unsafe_allow_html=True)
-            
-            # --- DASHBOARD ---
-            tab1, tab2, tab3 = st.tabs(["📈 Resumen Ejecutivo", "👥 Detalle por Funcionario", "📋 Auditoría de Datos"])
-
-            with tab1:
-                # Métricas Principales en Tarjetas
-                m1, m2, m3, m4 = st.columns(4)
-                m1.metric("Pedidos Totales", f"{len(df_f)}", help="Total de raciones despachadas")
-                m2.metric("Plato Principal", f"{df_f['Principal/minutas'].mode()[0] if not df_f.empty else 'N/A'}")
-                m3.metric("Infusiones/Dulces", f"{df_f['Tostados / Medialunas / Chipa / Cuadraditos Dulces'].mode()[0] if not df_f.empty else 'N/A'}")
-                m4.metric("Sector Mayoritario", f"{df_f['Sector'].mode()[0] if not df_f.empty else 'N/A'}")
-
-                st.markdown("### 📊 Tendencias de Consumo")
-                
-                col_left, col_right = st.columns(2)
-                with col_left:
-                    st.write("**Top 10 Platos Principales**")
-                    st.bar_chart(df_f['Principal/minutas'].value_counts().head(10), color="#1a2a6c")
-                
-                with col_right:
-                    st.write("**Consumo por Sector**")
-                    st.bar_chart(df_f['Sector'].value_counts(), color="#D4AF37")
-
-                st.markdown("---")
-                st.write("**Despacho de Mozos y Personal de Cocina**")
-                st.dataframe(df_f[['Mozo/a', 'Personal de despacho cocina']].value_counts().reset_index(name='Cantidad'), use_container_width=True)
-
-            with tab2:
-                st.subheader("🔍 Trazabilidad Individual")
-                nombre = st.text_input("Ingrese nombre o apellido del funcionario:")
-                if nombre:
-                    res = df_f[df_f['Funcionario'].str.contains(nombre, case=False, na=False)]
-                    st.dataframe(res[['Marca temporal', 'Funcionario', 'Sector', 'Principal/minutas', 'Guarnición']], use_container_width=True)
-
-            with tab3:
-                st.subheader("📋 Base de Datos de Auditoría")
-                st.write(f"Se visualizan {len(df_f)} registros procesados.")
-                st.dataframe(df_f, use_container_width=True)
-
-    except Exception as e:
-        st.error(f"Error en la estructura de datos: {e}")
-
-else:
-    st.info("🇦🇷 Sistema de Auditoría Interna - Inicie sesión para continuar.")
+# Botón flotante de "Añadir" (Estético)
+st.markdown("""
+    <div style='position: fixed; bottom: 20px; right: 20px; background-color: #5D1224; color: white; width: 50px; height: 50px; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;'>
+    +
+    </div>
+    """, unsafe_allow_html=True)
