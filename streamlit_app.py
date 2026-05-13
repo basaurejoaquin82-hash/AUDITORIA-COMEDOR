@@ -1,11 +1,9 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+from st_aggrid import AgGrid, GridOptionsBuilder
 from streamlit_option_menu import option_menu
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime
 import numpy as np
 
 # =========================================================
@@ -20,19 +18,17 @@ st.set_page_config(
 )
 
 # =========================================================
-# CSS PREMIUM INSTITUCIONAL
+# CSS PREMIUM
 # =========================================================
 
 st.markdown("""
 <style>
 
-/* ===== FONDO GENERAL ===== */
-
 .stApp {
     background-color: #F5F7FA;
 }
 
-/* ===== HEADER ===== */
+/* HEADER */
 
 .main-header {
     background: linear-gradient(90deg,#1A4B84,#D8A7B1);
@@ -46,7 +42,6 @@ st.markdown("""
     color: white;
     font-size: 34px;
     font-weight: 700;
-    margin-bottom: 5px;
 }
 
 .main-subtitle {
@@ -54,14 +49,14 @@ st.markdown("""
     font-size: 15px;
 }
 
-/* ===== SIDEBAR ===== */
+/* SIDEBAR */
 
 section[data-testid="stSidebar"] {
-    background-color: #ffffff;
+    background-color: #FFFFFF;
     border-right: 1px solid #EAEAEA;
 }
 
-/* ===== KPI CARDS ===== */
+/* CARDS */
 
 .metric-card {
     background: white;
@@ -73,47 +68,22 @@ section[data-testid="stSidebar"] {
 }
 
 .metric-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 22px rgba(0,0,0,0.12);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.10);
 }
 
-/* ===== TEXTOS ===== */
+/* TEXTO */
 
 html, body, [class*="css"] {
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* ===== EXPANDERS ===== */
-
-.streamlit-expanderHeader {
-    background-color: white;
-    border-radius: 10px;
-    padding: 10px;
-}
-
-/* ===== TABLAS ===== */
-
-.ag-theme-streamlit {
-    border-radius: 14px !important;
-    overflow: hidden !important;
-}
-
-/* ===== BADGES ===== */
-
-.badge-ok {
-    background-color: #E8F5E9;
-    color: #2E7D32;
-    padding: 6px 10px;
-    border-radius: 8px;
-    font-weight: 600;
-}
-
-/* ===== KPI VALUE ===== */
+/* MÉTRICAS */
 
 [data-testid="stMetricValue"] {
     font-size: 30px;
     font-weight: 800;
-    color: #1A1A1A;
+    color: #111111;
 }
 
 [data-testid="stMetricLabel"] {
@@ -121,11 +91,21 @@ html, body, [class*="css"] {
     font-weight: 600;
 }
 
+/* BOTONES */
+
+.stButton>button {
+    border-radius: 10px;
+    border: none;
+    background-color: #1A4B84;
+    color: white;
+    font-weight: 600;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN SIMPLE PROFESIONAL
+# LOGIN
 # =========================================================
 
 with st.sidebar:
@@ -162,13 +142,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MENÚ SUPERIOR
+# MENU SUPERIOR
 # =========================================================
 
 selected = option_menu(
     menu_title=None,
     options=[
-        "Dashboard Ejecutivo",
+        "Dashboard",
         "Auditoría",
         "Trazabilidad",
         "Análisis"
@@ -183,13 +163,24 @@ selected = option_menu(
 )
 
 # =========================================================
-# CARGA DE DATOS
+# CONEXIÓN GOOGLE SHEETS
 # =========================================================
 
 url = "https://docs.google.com/spreadsheets/d/1lqX4uss9CdW-QUqPlaBnvWoMePzuaBQ-89cfu7cDi3A/edit#gid=0"
 
-conn = st.connection("gsheets", type=GSheetsConnection)
-df = conn.read(spreadsheet=url, ttl="10m")
+try:
+
+    conn = st.connection("gsheets", type=GSheetsConnection)
+
+    df = conn.read(
+        spreadsheet=url,
+        ttl="10m"
+    )
+
+except Exception as e:
+
+    st.error(f"Error cargando Google Sheets: {e}")
+    st.stop()
 
 # =========================================================
 # LIMPIEZA
@@ -202,11 +193,17 @@ df['Marca temporal'] = pd.to_datetime(
 
 df = df.dropna(subset=['Marca temporal'])
 
-df = df[
-    ~df['Principal/minutas']
-    .astype(str)
-    .str.contains('NO SOLICITA', case=False, na=False)
-]
+if 'Principal/minutas' in df.columns:
+
+    df = df[
+        ~df['Principal/minutas']
+        .astype(str)
+        .str.contains(
+            'NO SOLICITA',
+            case=False,
+            na=False
+        )
+    ]
 
 # =========================================================
 # SIDEBAR FILTROS
@@ -215,7 +212,6 @@ df = df[
 with st.sidebar:
 
     st.markdown("---")
-
     st.markdown("## Filtros")
 
     fecha_min = df['Marca temporal'].min().date()
@@ -228,12 +224,14 @@ with st.sidebar:
 
     sectores = st.multiselect(
         "Sector",
-        options=sorted(df['Sector'].dropna().unique())
+        sorted(df['Sector'].dropna().unique())
+        if 'Sector' in df.columns else []
     )
 
     platos = st.multiselect(
         "Platos",
-        options=sorted(df['Principal/minutas'].dropna().unique())
+        sorted(df['Principal/minutas'].dropna().unique())
+        if 'Principal/minutas' in df.columns else []
     )
 
 # =========================================================
@@ -243,19 +241,22 @@ with st.sidebar:
 df_f = df.copy()
 
 if len(rango) == 2:
+
     df_f = df_f[
         (df_f['Marca temporal'].dt.date >= rango[0]) &
         (df_f['Marca temporal'].dt.date <= rango[1])
     ]
 
-if sectores:
+if sectores and 'Sector' in df_f.columns:
+
     df_f = df_f[df_f['Sector'].isin(sectores)]
 
-if platos:
+if platos and 'Principal/minutas' in df_f.columns:
+
     df_f = df_f[df_f['Principal/minutas'].isin(platos)]
 
 # =========================================================
-# BUSCADOR GLOBAL
+# BUSCADOR
 # =========================================================
 
 st.markdown("### 🔎 Buscador Inteligente")
@@ -279,24 +280,31 @@ if busqueda:
     df_f = df_f[mask]
 
 # =========================================================
-# KPI CARDS
+# KPIs
 # =========================================================
 
 c1, c2, c3, c4 = st.columns(4)
 
 with c1:
-    with st.container():
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.metric(
-            "Pedidos Totales",
-            f"{len(df_f):,}"
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
 
-with c2:
     st.markdown('<div class="metric-card">', unsafe_allow_html=True)
 
-    variedad = df_f['Principal/minutas'].nunique()
+    st.metric(
+        "Pedidos Totales",
+        f"{len(df_f):,}"
+    )
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with c2:
+
+    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+
+    variedad = (
+        df_f['Principal/minutas'].nunique()
+        if 'Principal/minutas' in df_f.columns
+        else 0
+    )
 
     st.metric(
         "Variedad de Platos",
@@ -306,13 +314,16 @@ with c2:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with c3:
+
     st.markdown('<div class="metric-card">', unsafe_allow_html=True)
 
-    top_plato = (
-        df_f['Principal/minutas']
-        .mode()[0]
-        if not df_f.empty else "-"
-    )
+    if not df_f.empty and 'Principal/minutas' in df_f.columns:
+
+        top_plato = df_f['Principal/minutas'].mode()[0]
+
+    else:
+
+        top_plato = "-"
 
     st.metric(
         "Plato Más Solicitado",
@@ -322,12 +333,12 @@ with c3:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with c4:
+
     st.markdown('<div class="metric-card">', unsafe_allow_html=True)
 
-    promedio = round(
-        len(df_f) / max(1, (rango[1] - rango[0]).days),
-        1
-    )
+    dias = max(1, (rango[1] - rango[0]).days)
+
+    promedio = round(len(df_f) / dias, 1)
 
     st.metric(
         "Promedio Diario",
@@ -350,31 +361,32 @@ with col1:
 
     st.markdown("### 📊 Distribución por Sector")
 
-    fig_pie = px.pie(
-        df_f,
-        names='Sector',
-        hole=0.45,
-        color_discrete_sequence=px.colors.sequential.Blues_r
-    )
+    if 'Sector' in df_f.columns:
 
-    fig_pie.update_layout(
-        height=430,
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(size=14)
-    )
+        fig_pie = px.pie(
+            df_f,
+            names='Sector',
+            hole=0.45,
+            color_discrete_sequence=px.colors.sequential.Blues_r
+        )
 
-    evento = st.plotly_chart(
-        fig_pie,
-        use_container_width=True
-    )
+        fig_pie.update_layout(
+            height=430,
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+
+        st.plotly_chart(
+            fig_pie,
+            use_container_width=True
+        )
 
 # =========================================================
-# EVOLUCIÓN TEMPORAL
+# EVOLUCIÓN
 # =========================================================
 
 with col2:
 
-    st.markdown("### 📈 Evolución de Consumo")
+    st.markdown("### 📈 Evolución Temporal")
 
     serie = (
         df_f.groupby(df_f['Marca temporal'].dt.date)
@@ -389,9 +401,7 @@ with col2:
         markers=True
     )
 
-    fig_line.update_traces(
-        line=dict(width=4)
-    )
+    fig_line.update_traces(line=dict(width=4))
 
     fig_line.update_layout(
         height=430,
@@ -409,90 +419,65 @@ with col2:
 
 st.markdown("### 🏆 Ranking de Platos")
 
-ranking = (
-    df_f['Principal/minutas']
-    .value_counts()
-    .head(10)
-    .reset_index()
-)
+if 'Principal/minutas' in df_f.columns:
 
-ranking.columns = ['Plato', 'Cantidad']
+    ranking = (
+        df_f['Principal/minutas']
+        .value_counts()
+        .head(10)
+        .reset_index()
+    )
 
-fig_bar = px.bar(
-    ranking,
-    x='Cantidad',
-    y='Plato',
-    orientation='h',
-    text='Cantidad',
-    color='Cantidad',
-    color_continuous_scale='Blues'
-)
+    ranking.columns = ['Plato', 'Cantidad']
 
-fig_bar.update_layout(
-    height=500,
-    yaxis=dict(categoryorder='total ascending'),
-    paper_bgcolor='rgba(0,0,0,0)'
-)
+    fig_bar = px.bar(
+        ranking,
+        x='Cantidad',
+        y='Plato',
+        orientation='h',
+        text='Cantidad',
+        color='Cantidad',
+        color_continuous_scale='Blues'
+    )
 
-st.plotly_chart(
-    fig_bar,
-    use_container_width=True
-)
+    fig_bar.update_layout(
+        height=500,
+        paper_bgcolor='rgba(0,0,0,0)',
+        yaxis=dict(categoryorder='total ascending')
+    )
 
-# =========================================================
-# HEATMAP DE CONSUMO
-# =========================================================
-
-st.markdown("### 🔥 Heatmap de Consumo")
-
-df_heat = (
-    df_f.groupby([
-        df_f['Marca temporal'].dt.day_name(),
-        'Sector'
-    ])
-    .size()
-    .reset_index(name='Cantidad')
-)
-
-fig_heat = px.density_heatmap(
-    df_heat,
-    x='Marca temporal',
-    y='Sector',
-    z='Cantidad',
-    color_continuous_scale='Blues'
-)
-
-fig_heat.update_layout(
-    height=500
-)
-
-st.plotly_chart(
-    fig_heat,
-    use_container_width=True
-)
+    st.plotly_chart(
+        fig_bar,
+        use_container_width=True
+    )
 
 # =========================================================
-# ALERTAS DE AUDITORÍA
+# ALERTAS
 # =========================================================
 
 st.markdown("### 🚨 Alertas de Auditoría")
 
-conteo = (
-    df_f['Principal/minutas']
-    .value_counts()
-)
+if 'Principal/minutas' in df_f.columns:
 
-if not conteo.empty:
+    conteo = df_f['Principal/minutas'].value_counts()
 
-    plato_excesivo = conteo.idxmax()
-    cantidad = conteo.max()
+    if not conteo.empty:
 
-    if cantidad > 20:
+        plato_top = conteo.idxmax()
+        cantidad = conteo.max()
 
-        st.error(
-            f"Consumo elevado detectado: "
-            f"{plato_excesivo} ({cantidad} pedidos)"
-        )
+        if cantidad > 20:
+
+            st.error(
+                f"Consumo elevado detectado: "
+                f"{plato_top} ({cantidad} pedidos)"
+            )
+
+        else:
+
+            st.success(
+                "No se detectaron anomalías críticas"
+            )
 
 # =========================================================
 # TABLA PROFESIONAL
@@ -502,33 +487,28 @@ st.markdown("### 📋 Trazabilidad Completa")
 
 gb = GridOptionsBuilder.from_dataframe(df_f)
 
-gb.configure_pagination(paginationAutoPageSize=True)
+gb.configure_pagination(
+    paginationAutoPageSize=True
+)
 
 gb.configure_default_column(
-    groupable=True,
-    value=True,
-    enableRowGroup=True,
-    editable=False,
     sortable=True,
     filter=True,
     resizable=True
 )
-
-gb.configure_selection("single")
 
 gridOptions = gb.build()
 
 AgGrid(
     df_f,
     gridOptions=gridOptions,
-    enable_enterprise_modules=True,
-    update_mode=GridUpdateMode.SELECTION_CHANGED,
     fit_columns_on_grid_load=True,
-    height=450
+    height=500,
+    theme="streamlit"
 )
 
 # =========================================================
-# ANÁLISIS AVANZADO
+# ANALÍTICA AVANZADA
 # =========================================================
 
 with st.expander("📊 Análisis Ejecutivo"):
@@ -537,27 +517,30 @@ with st.expander("📊 Análisis Ejecutivo"):
 
     with colA:
 
-        top_sector = (
-            df_f['Sector']
-            .value_counts()
-            .idxmax()
-        )
+        if 'Sector' in df_f.columns and not df_f.empty:
 
-        st.info(
-            f"Sector con mayor demanda: {top_sector}"
-        )
+            sector_top = (
+                df_f['Sector']
+                .value_counts()
+                .idxmax()
+            )
+
+            st.info(
+                f"Sector con mayor demanda: {sector_top}"
+            )
 
     with colB:
 
-        funcionario_top = (
-            df_f.iloc[0]['Nombre y Apellido']
-            if 'Nombre y Apellido' in df_f.columns
-            else "No disponible"
-        )
+        if 'Marca temporal' in df_f.columns:
 
-        st.success(
-            f"Último registro auditado: {funcionario_top}"
-        )
+            ultimo = (
+                df_f['Marca temporal']
+                .max()
+            )
+
+            st.success(
+                f"Última actualización: {ultimo}"
+            )
 
 # =========================================================
 # FOOTER
