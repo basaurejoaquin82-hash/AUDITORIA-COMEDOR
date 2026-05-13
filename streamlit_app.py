@@ -1,133 +1,105 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
-from streamlit_option_menu import option_menu
+try:
+    from streamlit_option_menu import option_menu
+except ImportError:
+    st.error("Falta la librería 'streamlit-option-menu'. Verificá tu requirements.txt")
 import pandas as pd
 import plotly.express as px
 
-# 1. CONFIGURACIÓN GENERAL
-st.set_page_config(
-    page_title="Sistema de Auditoría Gastronómica",
-    page_icon="⚖️",
-    layout="wide"
-)
+# 1. CONFIGURACIÓN
+st.set_page_config(page_title="Auditoría Economato CR", layout="wide")
 
-# 2. CSS PREMIUM (Letras Negras y Estilo)
+# 2. CSS PARA VISIBILIDAD TOTAL
 st.markdown("""
 <style>
-.stApp { background-color: #F5F7FA; }
-.main-header {
-    background: linear-gradient(90deg,#1A4B84,#D8A7B1);
-    padding: 28px;
-    border-radius: 18px;
-    margin-bottom: 25px;
-    box-shadow: 0px 4px 20px rgba(0,0,0,0.10);
-}
-.main-title { color: white; font-size: 34px; font-weight: 700; }
-.main-subtitle { color: rgba(255,255,255,0.85); font-size: 15px; }
-[data-testid="stMetricValue"] { color: #000000 !important; font-size: 30px; font-weight: 800; }
-[data-testid="stMetricLabel"] { color: #000000 !important; font-weight: 600; }
-h1, h2, h3, p, span { color: #000000 !important; }
-.metric-card {
-    background: white;
-    padding: 22px;
-    border-radius: 18px;
-    border-left: 6px solid #1A4B84;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.06);
-}
+    .stApp { background-color: #F5F7FA; }
+    html, body, [class*="st-"], p, h1, h2, h3, span, label { color: #000000 !important; }
+    .main-header {
+        background: linear-gradient(90deg,#1A4B84,#D8A7B1);
+        padding: 20px; border-radius: 15px; margin-bottom: 20px;
+    }
+    .metric-card {
+        background: white; padding: 20px; border-radius: 15px;
+        border-left: 6px solid #1A4B84; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# 3. LOGIN EN SIDEBAR
+# 3. LOGIN SIMPLIFICADO
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/7/75/Coat_of_arms_of_Argentina.svg", width=90)
-    st.markdown("## Acceso Institucional")
-    usuario = st.text_input("Usuario")
-    password = st.text_input("Contraseña", type="password")
-    if usuario != "admin" or password != "1234":
-        st.warning("Ingrese credenciales válidas")
+    st.image("https://upload.wikimedia.org/wikipedia/commons/7/75/Coat_of_arms_of_Argentina.svg", width=80)
+    st.title("Acceso")
+    user = st.text_input("Usuario")
+    pw = st.text_input("Contraseña", type="password")
+    if user != "admin" or pw != "1234":
+        st.info("Esperando credenciales...")
         st.stop()
-    st.success("Acceso autorizado")
 
-# 4. HEADER
-st.markdown("""
-<div class="main-header">
-    <div class="main-title">⚖️ Sistema de Auditoría Gastronómica</div>
-    <div class="main-subtitle">Casa Rosada · Presidencia de la Nación Argentina</div>
-</div>
-""", unsafe_allow_html=True)
+# 4. HEADER INSTITUCIONAL
+st.markdown("""<div class="main-header"><h1 style="color:white !important; margin:0;">⚖️ Auditoría Gastronómica</h1><p style="color:white !important; margin:0;">Casa Rosada · Presidencia de la Nación</p></div>""", unsafe_allow_html=True)
 
-# 5. MENÚ SUPERIOR
-selected = option_menu(
-    menu_title=None,
-    options=["Dashboard", "Auditoría", "Trazabilidad", "Análisis"],
-    icons=["speedometer2", "shield-check", "search", "graph-up"],
-    orientation="horizontal"
-)
+# 5. MENÚ
+selected = option_menu(None, ["Dashboard", "Trazabilidad", "Análisis"], 
+    icons=["speedometer2", "search", "graph-up"], orientation="horizontal")
 
-# 6. CONEXIÓN Y DATOS
+# 6. DATOS
 url = "https://docs.google.com/spreadsheets/d/1lqX4uss9CdW-QUqPlaBnvWoMePzuaBQ-89cfu7cDi3A/edit#gid=0"
 
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-    df = conn.read(spreadsheet=url, ttl="10m")
+    df = conn.read(spreadsheet=url, ttl="5m")
     
-    # Limpieza
+    # Limpieza de columnas y filas
+    df.columns = df.columns.str.strip()
     df['Marca temporal'] = pd.to_datetime(df['Marca temporal'], errors='coerce')
     df = df.dropna(subset=['Marca temporal'])
-    if 'Principal/minutas' in df.columns:
-        df = df[~df['Principal/minutas'].astype(str).str.contains('NO SOLICITA', case=False, na=False)]
+    
+    # Filtro dinámico de "NO SOLICITA"
+    col_menu = 'Principal/minutas'
+    if col_menu in df.columns:
+        df = df[~df[col_menu].astype(str).str.contains('NO SOLICITA', case=False, na=False)]
 
-    # Filtros
+    # Filtros laterales
     with st.sidebar:
         st.markdown("---")
-        st.markdown("## Filtros")
         f_min, f_max = df['Marca temporal'].min().date(), df['Marca temporal'].max().date()
-        rango = st.date_input("Rango de fechas", value=(f_min, f_max))
-        sectores = st.multiselect("Sector", sorted(df['Sector'].dropna().unique()) if 'Sector' in df.columns else [])
-
-    # Filtrado lógico
+        rango = st.date_input("Fecha", value=(f_min, f_max))
+    
+    # Lógica de filtrado
     df_f = df.copy()
     if len(rango) == 2:
         df_f = df_f[(df_f['Marca temporal'].dt.date >= rango[0]) & (df_f['Marca temporal'].dt.date <= rango[1])]
-    if sectores:
-        df_f = df_f[df_f['Sector'].isin(sectores)]
 
-    # DASHBOARD PRINCIPAL
     if selected == "Dashboard":
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3 = st.columns(3)
         with c1:
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric("Pedidos Totales", f"{len(df_f):,}")
+            st.metric("Total Pedidos", len(df_f))
             st.markdown('</div>', unsafe_allow_html=True)
         with c2:
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            variedad = df_f['Principal/minutas'].nunique() if 'Principal/minutas' in df_f.columns else 0
-            st.metric("Variedad Platos", variedad)
+            val = df_f[col_menu].mode()[0] if col_menu in df_f.columns and not df_f.empty else "N/A"
+            st.metric("Top Plato", val)
             st.markdown('</div>', unsafe_allow_html=True)
         with c3:
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            top = df_f['Principal/minutas'].mode()[0] if not df_f.empty else "-"
-            st.metric("Top Plato", top)
-            st.markdown('</div>', unsafe_allow_html=True)
-        with c4:
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            dias = max(1, (rango[1] - rango[0]).days)
-            st.metric("Promedio Diario", round(len(df_f)/dias, 1))
+            st.metric("Sectores", df['Sector'].nunique() if 'Sector' in df.columns else 0)
             st.markdown('</div>', unsafe_allow_html=True)
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("### 📊 Distribución por Sector")
-            fig_pie = px.pie(df_f, names='Sector', hole=0.4)
-            st.plotly_chart(fig_pie, use_container_width=True)
-        with col2:
-            st.markdown("### 📈 Evolución")
-            serie = df_f.groupby(df_f['Marca temporal'].dt.date).size().reset_index(name='Pedidos')
-            st.line_chart(serie.set_index('Marca temporal'))
+        st.markdown("### Visualización de Datos")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if 'Sector' in df_f.columns:
+                fig = px.pie(df_f, names='Sector', title="Pedidos por Sector")
+                st.plotly_chart(fig, use_container_width=True)
+        with col_b:
+            serie = df_f.groupby(df_f['Marca temporal'].dt.date).size().reset_index(name='Cant')
+            fig2 = px.line(serie, x='Marca temporal', y='Cant', title="Evolución Diaria")
+            st.plotly_chart(fig2, use_container_width=True)
 
     else:
-        st.info(f"Sección {selected} en desarrollo o visualizando datos filtrados:")
         st.dataframe(df_f, use_container_width=True)
 
 except Exception as e:
-    st.error(f"Error: {e}")
+    st.error(f"Error detectado: {e}")
