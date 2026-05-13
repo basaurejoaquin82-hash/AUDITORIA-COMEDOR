@@ -28,7 +28,7 @@ if password == "1234": # Aquí pondrías tu clave real
     st.sidebar.success(f"Sesión iniciada como: {user_role}")
     
     # 3. CARGA DE DATOS
-    url = "https://docs.google.com/spreadsheets/d/13yrtrXfH_k-lJbTDMFXVAPb1KUbZqRWUKDgHXH79wvw/edit#gid=803817362"
+    url = "https://docs.google.com/spreadsheets/d/1lqX4uss9CdW-QUqPlaBnvWoMePzuaBQ-89cfu7cDi3A/edit#gid=0"
     
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
