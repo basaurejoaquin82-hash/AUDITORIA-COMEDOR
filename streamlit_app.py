@@ -10,99 +10,97 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilo profesional e institucional
+# Estilo Institucional
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
     .stMetric { background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; }
-    h1 { color: #1a2a6c; font-family: 'Helvetica', sans-serif; }
+    h1 { color: #1a2a6c; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. LOGIN DE ACCESO
+# 2. LOGIN
 st.sidebar.title("🔐 Acceso Institucional")
-user_role = st.sidebar.selectbox("Rol de Usuario", ["Auditor", "Depósito", "Cocina"])
+user_role = st.sidebar.selectbox("Rol", ["Auditor", "Depósito", "Cocina"])
 password = st.sidebar.text_input("Contraseña", type="password")
 
 if password == "1234":
-    # 3. CONEXIÓN A TU NUEVA PLANILLA
     url = "https://docs.google.com/spreadsheets/d/1lqX4uss9CdW-QUqPlaBnvWoMePzuaBQ-89cfu7cDi3A/edit#gid=0"
     
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        # Cargamos los datos ignorando filas vacías
         df = conn.read(spreadsheet=url, ttl="1m")
-        df = df.dropna(how='all')
+        
+        # --- LIMPIEZA DE DATOS ---
+        # 1. Convertimos la 'Marca temporal' a formato fecha real para poder filtrar
+        df['Marca temporal'] = pd.to_datetime(df['Marca temporal'], errors='coerce')
+        df = df.dropna(subset=['Marca temporal'])
+        
+        # 2. BORRAMOS TODO LO QUE DIGA "NO SOLICITA"
+        # Esto limpia tanto en platos principales como en desayunos
+        df = df[df['Principal/minutas'] != 'NO SOLICITA']
+        df = df[df['Tostados / Medialunas / Chipa / Cuadraditos Dulces'] != 'NO SOLICITA']
 
-        st.title("⚖️ Panel de Control y Auditoría de Suministros")
-        st.caption(f"Visualizando datos del sector: {user_role}")
+        # --- FILTRO DE TRAZABILIDAD TEMPORAL ---
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("📅 Rango de Auditoría")
+        min_fecha = df['Marca temporal'].min().date()
+        max_fecha = df['Marca temporal'].max().date()
+        
+        rango_fechas = st.sidebar.date_input(
+            "Seleccioná el período:",
+            value=(min_fecha, max_fecha),
+            min_value=min_fecha,
+            max_value=max_fecha
+        )
 
-        # Pestañas de gestión
-        tab1, tab2, tab3, tab4 = st.tabs(["📊 Consumo General", "👥 Trazabilidad Funcionarios", "📦 Auditoría Materia Prima", "📜 Registro de Logs"])
+        # Aplicar el filtro de fechas si se seleccionan ambas
+        if len(rango_fechas) == 2:
+            inicio, fin = rango_fechas
+            mask = (df['Marca temporal'].dt.date >= inicio) & (df['Marca temporal'].dt.date <= fin)
+            df_filtrado = df.loc[mask]
+        else:
+            df_filtrado = df
+
+        st.title("⚖️ Panel de Control y Auditoría")
+        st.caption(f"Mostrando información desde {rango_fechas[0]} hasta {rango_fechas[1] if len(rango_fechas)>1 else '...'}")
+
+        tab1, tab2, tab3 = st.tabs(["📊 Dashboard de Consumo", "🔍 Trazabilidad de Funcionarios", "📋 Datos Crudos"])
 
         with tab1:
-            st.subheader("Análisis de Pedidos (Platos y Minutas)")
-            
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Total Pedidos Registrados", len(df))
+                st.metric("Pedidos Reales", len(df_filtrado))
             with col2:
-                # Calculamos el plato más pedido de la columna D (Principal/minutas)
-                plato_top = df['Principal/minutas'].mode()[0] if not df['Principal/minutas'].empty else "Sin datos"
-                st.metric("Plato más solicitado", plato_top)
+                top_p = df_filtrado['Principal/minutas'].mode()[0] if not df_filtrado.empty else "N/A"
+                st.metric("Plato Estrella", top_p)
             with col3:
-                # Calculamos el sector con más demanda de la columna B (Sector)
-                sector_top = df['Sector'].mode()[0] if not df['Sector'].empty else "Sin datos"
-                st.metric("Sector con mayor consumo", sector_top)
+                sector = df_filtrado['Sector'].mode()[0] if not df_filtrado.empty else "N/A"
+                st.metric("Sector con más pedidos", sector)
 
             st.markdown("---")
-            
-            # Gráfico de consumo por tipo de plato
-            st.write("**Distribución de Platos Principales y Minutas:**")
-            conteo_platos = df['Principal/minutas'].value_counts()
-            st.bar_chart(conteo_platos, color="#1a2a6c")
-
-            # Gráfico de desayunos/meriendas (Columna E)
-            st.write("**Distribución de Tostados, Medialunas y Dulces:**")
-            conteo_desayunos = df['Tostados / Medialunas / Chipa / Cuadraditos Dulces'].value_counts()
-            st.bar_chart(conteo_desayunos, color="#c7a17a")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.write("**Consumo de Platos Principales**")
+                st.bar_chart(df_filtrado['Principal/minutas'].value_counts(), color="#1a2a6c")
+            with c2:
+                st.write("**Consumo de Panadería/Dulces**")
+                st.bar_chart(df_filtrado['Tostados / Medialunas / Chipa / Cuadraditos Dulces'].value_counts(), color="#c7a17a")
 
         with tab2:
-            st.subheader("Buscador de Consumo por Funcionario")
-            # Usamos la columna C (Funcionario)
-            query = st.text_input("Ingrese apellido o nombre del funcionario:")
-            if query:
-                busqueda = df[df['Funcionario'].str.contains(query, case=False, na=False)]
-                st.dataframe(busqueda[['Marca temporal', 'Sector', 'Funcionario', 'Principal/minutas', 'Postres']], use_container_width=True)
+            st.subheader("Buscador por Funcionario")
+            nombre = st.text_input("Escribí el nombre del funcionario:")
+            if nombre:
+                res = df_filtrado[df_filtrado['Funcionario'].str.contains(nombre, case=False, na=False)]
+                st.dataframe(res, use_container_width=True)
 
         with tab3:
-            st.subheader("Control de Materia Prima vs. Despacho")
-            st.info("Este panel calcula la materia prima teórica basada en los pedidos realizados.")
-            
-            # Ejemplo de lógica de auditoría para la columna F (Cantidad tostados/medialunas)
-            total_unidades = df['Cantidad solo tostados y medialunas'].sum()
-            st.metric("Total Unidades de Panadería Despachadas", f"{int(total_unidades)} u.")
-            
-            st.write("---")
-            st.write("**Detalle de despacho por Mozo/a (Columna J):**")
-            mozos = df['Mozo/a'].value_counts()
-            st.table(mozos)
-
-        with tab4:
-            st.subheader("Logs de Auditoría Interna")
-            # Registro de quién entró a mirar los datos
-            log_entry = pd.DataFrame([{
-                "Fecha/Hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "Usuario": user_role,
-                "Acción": "Consulta de Dashboard General"
-            }])
-            st.table(log_entry)
+            st.subheader("Listado Detallado")
+            st.write("Esta tabla muestra los registros filtrados por el rango de fechas seleccionado.")
+            st.dataframe(df_filtrado, use_container_width=True)
 
     except Exception as e:
-        st.error(f"Error al procesar las columnas: {e}")
-        st.info("Asegúrate de que los nombres de las columnas en el Excel coincidan exactamente con el código.")
+        st.error(f"Hubo un error al procesar los datos: {e}")
 
 else:
-    if password:
-        st.sidebar.error("Contraseña incorrecta")
-    st.warning("Ingrese la contraseña institucional para visualizar los reportes de auditoría.")
+    st.warning("Por favor, ingrese la contraseña para acceder al sistema.")
