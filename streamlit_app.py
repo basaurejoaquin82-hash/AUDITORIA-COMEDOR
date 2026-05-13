@@ -4,107 +4,112 @@ import pandas as pd
 import plotly.express as px
 
 # 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="Auditoría Economato CR", layout="wide")
+st.set_page_config(page_title="Auditoría Gastronómica CR", layout="wide")
 
-# 2. ESTILO: AZUL, BLANCO Y LETRAS NEGRAS (Sin fallos)
+# 2. ESTILO CSS: AZUL, BLANCO Y TEXTO NEGRO
 st.markdown("""
     <style>
-    .stApp { background-color: #F8F9FA; }
-    
-    /* Forzar negro en todos los textos */
-    html, body, [class*="st-"], p, h1, h2, h3, span, label { 
-        color: #000000 !important; 
+    .stApp { background-color: #F0F2F5; }
+    html, body, [class*="st-"], p, h1, h2, h3, h4 { color: #000000 !important; }
+    .card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid #E0E0E0;
+        border-top: 5px solid #1A4B84;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
-    
-    /* Tarjetas Blancas Estilo Ejecutivo */
-    .card { 
-        background: white; 
-        padding: 20px; 
-        border-radius: 12px; 
-        border-top: 5px solid #1A4B84; 
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05); 
-        margin-bottom: 20px;
-    }
-
-    /* Estilo de las métricas */
-    [data-testid="stMetricValue"] { color: #000000 !important; font-weight: bold; }
-    [data-testid="stMetricLabel"] { color: #000000 !important; }
+    [data-testid="stMetricValue"] { color: #000000 !important; font-weight: 800 !important; }
+    [data-testid="stMetricLabel"] { color: #333333 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. ACCESO (SIDEBAR)
+# 3. ACCESO
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/7/75/Coat_of_arms_of_Argentina.svg", width=80)
-    st.markdown("### Acceso Institucional")
-    pw = st.text_input("Contraseña", type="password")
-    if pw != "1234":
-        st.info("Esperando autenticación...")
+    st.title("🔵 Gestión CR")
+    # CAMBIA TU CONTRASEÑA AQUÍ:
+    password = st.text_input("Contraseña", type="password")
+    if password != "1234":
+        st.warning("Ingrese clave para continuar.")
         st.stop()
+    st.success("Acceso Autorizado")
 
-# 4. TÍTULO PRINCIPAL
-st.title("⚖️ Auditoría Gastronómica - Casa Rosada")
-
-# 5. CONEXIÓN A DATOS
+# 4. CONEXIÓN Y DATOS
 url = "https://docs.google.com/spreadsheets/d/1lqX4uss9CdW-QUqPlaBnvWoMePzuaBQ-89cfu7cDi3A/edit#gid=0"
 
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-    df = conn.read(spreadsheet=url, ttl="5m")
-    
-    # Limpieza prolija de columnas y datos
-    df.columns = df.columns.str.strip()
+    df = conn.read(spreadsheet=url, ttl="600")
+
+    # Limpieza de datos
     df['Marca temporal'] = pd.to_datetime(df['Marca temporal'], errors='coerce')
     df = df.dropna(subset=['Marca temporal'])
+    df = df[~df['Principal/minutas'].str.contains('NO SOLICITA', na=False, case=False)]
+
+    # Filtro de fecha
+    min_f, max_f = df['Marca temporal'].min().date(), df['Marca temporal'].max().date()
+    rango = st.sidebar.date_input("Rango de Auditoría", value=(min_f, max_f))
+
+    if len(rango) == 2:
+        df_f = df[(df['Marca temporal'].dt.date >= rango[0]) & (df['Marca temporal'].dt.date <= rango[1])]
+    else:
+        df_f = df
+
+    # 5. INTERFAZ DASHBOARD
+    st.title("⚖️ Panel de Auditoría y Control Gastronómico")
     
-    # Filtro de "NO SOLICITA"
-    if 'Principal/minutas' in df.columns:
-        df = df[~df['Principal/minutas'].astype(str).str.contains('NO SOLICITA', case=False, na=False)]
-
-    # --- PESTAÑAS (TABS) NATIVAS (No requieren librerías extra) ---
-    tab1, tab2, tab3 = st.tabs(["📊 Dashboard de Consumo", "🔍 Trazabilidad", "📅 Filtros Temporales"])
-
-    with tab1:
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.markdown(f'<div class="card"><h4>Pedidos Totales</h4><h2>{len(df)}</h2></div>', unsafe_allow_html=True)
-        with c2:
-            top = df['Principal/minutas'].mode()[0] if not df.empty else "N/A"
-            st.markdown(f'<div class="card"><h4>Plato Estrella</h4><h4>{top}</h4></div>', unsafe_allow_html=True)
-        with c3:
-            st.markdown(f'<div class="card"><h4>Sectores</h4><h2>{df["Sector"].nunique() if "Sector" in df.columns else 0}</h2></div>', unsafe_allow_html=True)
-
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            if 'Sector' in df.columns:
-                fig = px.pie(df, names='Sector', title="Consumo por Sector", color_discrete_sequence=px.colors.sequential.Blues_r)
-                st.plotly_chart(fig, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-        with col_b:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            serie = df.groupby(df['Marca temporal'].dt.date).size().reset_index(name='Cant')
-            fig2 = px.line(serie, x='Marca temporal', y='Cant', title="Evolución de Pedidos")
-            st.plotly_chart(fig2, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    with tab2:
+    # --- FILA 1: MÉTRICAS EXTENDIDAS ---
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        busqueda = st.text_input("Buscar por funcionario o sector:")
-        if busqueda:
-            mask = df.astype(str).apply(lambda x: x.str.contains(busqueda, case=False)).any(axis=1)
-            st.dataframe(df[mask], use_container_width=True)
-        else:
-            st.dataframe(df, use_container_width=True)
+        st.metric("Total Pedidos", len(df_f))
+        st.markdown('</div>', unsafe_allow_html=True)
+    with m2:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        variedad = df_f['Principal/minutas'].nunique()
+        st.metric("Variedad de Platos", variedad)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with m3:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        top_p = df_f['Principal/minutas'].mode()[0] if not df_f.empty else "N/A"
+        st.metric("Plato más solicitado", top_p)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with m4:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        promedio = round(len(df_f) / (max(1, (rango[1]-rango[0]).days)), 1) if len(rango)==2 else 0
+        st.metric("Promedio Diario", f"{promedio}")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with tab3:
+    # --- FILA 2: GRÁFICOS AVANZADOS ---
+    col_izq, col_der = st.columns([1, 1])
+
+    with col_izq:
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.info("Filtros avanzados de fecha en desarrollo.")
-        st.date_input("Seleccionar rango para reporte:")
+        st.subheader("📊 Distribución por Sector")
+        # Gráfico de Torta usando Plotly para que sea interactivo
+        fig_pie = px.pie(df_f, names='Sector', color_discrete_sequence=px.colors.sequential.Blues_r)
+        fig_pie.update_layout(showlegend=True, margin=dict(t=0, b=0, l=0, r=0))
+        st.plotly_chart(fig_pie, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-except Exception as e:
-    st.error(f"Error técnico: {e}")
+    with col_der:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.subheader("📈 Evolución de Pedidos")
+        # Gráfico de línea temporal
+        df_time = df_f.groupby(df_f['Marca temporal'].dt.date).size().reset_index(name='Pedidos')
+        st.line_chart(df_time.set_index('Marca temporal'), color="#1A4B84")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- FILA 3: RANKING ---
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.subheader("🏆 Top 10 Platos más consumidos")
+    st.bar_chart(df_f['Principal/minutas'].value_counts().head(10), color="#1A4B84")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- TABLA DE DATOS ---
+    with st.expander("🔍 Ver Detalle de Trazabilidad"):
+        st.dataframe(df_f, use_container_width=True)
 
 except Exception as e:
-    st.error(f"Error técnico: {e}")
+    st.error(f"Error en los datos: {e}")
