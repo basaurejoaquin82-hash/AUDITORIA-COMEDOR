@@ -1,6 +1,5 @@
 streamlit
 streamlit-gsheets
-streamlit-aggrid
 streamlit-option-menu
 plotly
 pandas
