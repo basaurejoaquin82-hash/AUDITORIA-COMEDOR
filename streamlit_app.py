@@ -1,136 +1,126 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import datetime
 
-# 1. CONFIGURACIÓN DE PÁGINA Y MARCA
-st.set_page_config(page_title="Auditoría Gastronómica - Casa Rosada", layout="wide")
+# 1. CONFIGURACIÓN DE PÁGINA
+st.set_page_config(page_title="Auditoría CR - Gestión Azul", layout="wide")
 
-# CSS PERSONALIZADO (Estética de Tarjetas + Letras Negras)
+# 2. ESTILO CSS: PALETA AZUL, BLANCO Y NEGRO
 st.markdown("""
     <style>
-    /* Fondo general rosado suave */
-    .stApp { background-color: #FDF2F2; }
+    /* Fondo general gris muy claro */
+    .stApp { background-color: #F0F2F5; }
     
-    /* Sidebar */
-    [data-testid="stSidebar"] { background-color: #FCE4E4; border-right: 1px solid #E5E5E5; }
-    
-    /* Forzar color NEGRO en todos los textos */
-    h1, h2, h3, h4, p, span, li, label, div { 
-        color: #000000 !important; 
-        font-family: 'Inter', sans-serif; 
-    }
-
-    /* Tarjetas Blancas (Cards) */
-    .main-card {
-        background-color: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        border: 1px solid #F0F0F0;
-        margin-bottom: 20px;
-    }
-
-    /* Ajuste para métricas de Streamlit */
-    [data-testid="stMetricValue"] { color: #000000 !important; font-weight: bold; }
-    [data-testid="stMetricLabel"] { color: #000000 !important; }
-    
-    /* Tabs (Pestañas) */
-    .stTabs [data-baseweb="tab-list"] { gap: 20px; }
-    .stTabs [data-baseweb="tab"] {
-        background-color: transparent;
-        border-radius: 4px;
+    /* Forzar color NEGRO en todos los textos y números */
+    html, body, [class*="st-"], .stMarkdown, p, h1, h2, h3, h4 {
         color: #000000 !important;
+    }
+
+    /* Tarjetas Blancas con borde azul superior */
+    .card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #E0E0E0;
+        border-top: 5px solid #1A4B84; /* Azul Institucional */
+        margin-bottom: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    /* Métricas: Números en Negro */
+    [data-testid="stMetricValue"] {
+        color: #000000 !important;
+        font-weight: 800 !important;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #333333 !important;
+        font-weight: 500 !important;
+    }
+
+    /* Estilo del Sidebar (Azul Suave) */
+    [data-testid="stSidebar"] {
+        background-color: #E6EEF8;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. SIDEBAR - CONTROL DE ACCESO Y FILTROS
+# 3. ACCESO EN SIDEBAR
 with st.sidebar:
-    st.markdown("### **Panel de Control**")
-    password = st.sidebar.text_input("Contraseña Institucional", type="password")
-    
-    if password == "1234":
-        st.success("Acceso Autorizado")
-    else:
-        st.warning("Ingrese clave para operar")
+    st.title("🔵 Auditoría CR")
+    st.caption("Gestión de Comedor")
+    password = st.text_input("Contraseña", type="password")
+    if password != "1234":
+        st.warning("Ingrese la clave para visualizar el reporte.")
         st.stop()
+    st.success("Conexión Establecida")
 
-# 3. CARGA Y LIMPIEZA DE DATOS (Solo si la clave es correcta)
+# 4. CONEXIÓN A DATOS
 url = "https://docs.google.com/spreadsheets/d/1lqX4uss9CdW-QUqPlaBnvWoMePzuaBQ-89cfu7cDi3A/edit#gid=0"
 
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df = conn.read(spreadsheet=url, ttl="600")
-    
-    # Limpieza de "NO SOLICITA" y Fechas
+
+    # Limpieza de datos
     df['Marca temporal'] = pd.to_datetime(df['Marca temporal'], errors='coerce')
     df = df.dropna(subset=['Marca temporal'])
     df = df[~df['Principal/minutas'].str.contains('NO SOLICITA', na=False, case=False)]
-    
-    # Selector de fechas en Sidebar
-    st.sidebar.markdown("---")
+
+    # Filtro de fecha
     min_f, max_f = df['Marca temporal'].min().date(), df['Marca temporal'].max().date()
-    rango = st.sidebar.date_input("Rango de Auditoría", value=(min_f, max_f))
+    rango = st.sidebar.date_input("Rango de Fechas", value=(min_f, max_f))
 
     if len(rango) == 2:
-        inicio, fin = rango
-        df_f = df[(df['Marca temporal'].dt.date >= inicio) & (df['Marca temporal'].dt.date <= fin)]
+        df_f = df[(df['Marca temporal'].dt.date >= rango[0]) & (df['Marca temporal'].dt.date <= rango[1])]
     else:
         df_f = df
 
-    # 4. CUERPO PRINCIPAL - DISEÑO DE TARJETAS
-    st.markdown(f"## Auditoría de Consumo | {inicio.strftime('%d/%m/%Y')} - {fin.strftime('%d/%m/%Y')}")
-    st.caption("Dirección de Administración - Casa Rosada")
-
-    # Fila de KPIs (Tarjetas superiores)
-    col1, col2, col3, col4 = st.columns(4)
-
+    # 5. INTERFAZ DASHBOARD
+    st.title("Sistema de Auditoría Gastronómica")
+    st.info(f"Mostrando datos del período: {rango}")
+    
+    # KPIs en Tarjetas
+    col1, col2, col3 = st.columns(3)
+    
     with col1:
-        st.markdown(f"""<div class="main-card"><p style='font-size: 14px;'>PEDIDOS REALES</p><h2 style='margin: 0;'>{len(df_f)}</h2><p style='font-size: 12px;'>Registros procesados</p></div>""", unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.metric("Total Pedidos", len(df_f))
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with col2:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         top_p = df_f['Principal/minutas'].mode()[0] if not df_f.empty else "N/A"
-        st.markdown(f"""<div class="main-card"><p style='font-size: 14px;'>PLATO ESTRELLA</p><h3 style='margin: 0;'>{top_p}</h3><p style='font-size: 12px; color: #5D1224;'>Más solicitado</p></div>""", unsafe_allow_html=True)
+        st.metric("Plato Destacado", top_p)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with col3:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         sector = df_f['Sector'].mode()[0] if not df_f.empty else "N/A"
-        st.markdown(f"""<div class="main-card"><p style='font-size: 14px;'>MAYOR DEMANDA</p><h2 style='margin: 0;'>{sector}</h2><p style='font-size: 12px;'>Sector activo</p></div>""", unsafe_allow_html=True)
+        st.metric("Sector con más pedidos", sector)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    with col4:
-        # Ejemplo de alerta estética
-        st.markdown(f"""<div class="main-card" style="border-left: 5px solid #5D1224;"><p style='font-size: 14px;'>ESTADO SISTEMA</p><h2 style='margin: 0;'>ACTIVO</h2><p style='font-size: 12px; color: green;'>Sincronizado</p></div>""", unsafe_allow_html=True)
+    # Gráficos y Tablas
+    tab1, tab2 = st.tabs(["📊 Gráficos de Consumo", "🔍 Trazabilidad"])
 
-    # Tabs para organización
-    tab_graficos, tab_trazabilidad, tab_datos = st.tabs(["📊 Análisis Visual", "🔍 Trazabilidad", "📋 Base Completa"])
+    with tab1:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.subheader("Distribución de Platos")
+        # Gráfico en azul institucional
+        st.bar_chart(df_f['Principal/minutas'].value_counts().head(10), color="#1A4B84")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    with tab_graficos:
-        c_left, c_right = st.columns([2, 1])
-        with c_left:
-            st.markdown('<div class="main-card">', unsafe_allow_html=True)
-            st.markdown("### Top Consumo por Plato")
-            st.bar_chart(df_f['Principal/minutas'].value_counts().head(10), color="#5D1224")
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        with c_right:
-            st.markdown('<div class="main-card">', unsafe_allow_html=True)
-            st.markdown("### Consumo por Sector")
-            st.bar_chart(df_f['Sector'].value_counts(), color="#D4AF37")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    with tab_trazabilidad:
-        st.markdown('<div class="main-card">', unsafe_allow_html=True)
-        nombre = st.text_input("Buscar Funcionario:")
+    with tab2:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        nombre = st.text_input("Filtrar por Funcionario:")
         if nombre:
             res = df_f[df_f['Funcionario'].str.contains(nombre, case=False, na=False)]
-            st.dataframe(res[['Marca temporal', 'Funcionario', 'Sector', 'Principal/minutas']], use_container_width=True)
+            st.dataframe(res, use_container_width=True)
+        else:
+            st.dataframe(df_f, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with tab_datos:
-        st.markdown('<div class="main-card">', unsafe_allow_html=True)
-        st.dataframe(df_f, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
+except Exception as e:
+    st.error(f"Error en la carga de datos: {e}")
 except Exception as e:
     st.error(f"Error de conexión: {e}")
     st.info("Verifica que la planilla de Google Sheets tenga permisos de lectura para 'Cualquier persona con el enlace'.")
