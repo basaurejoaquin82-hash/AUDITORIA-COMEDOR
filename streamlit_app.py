@@ -46,10 +46,10 @@ st.markdown("""
 
 # 3. ACCESO EN SIDEBAR
 with st.sidebar:
-    st.title("🔵 Auditoría CR")
+    st.title("🔵 COMANDAS SIN CARGO")
     st.caption("Gestión de Comedor")
     password = st.text_input("Contraseña", type="password")
-    if password != "1234":
+    if password != "91218":
         st.warning("Ingrese la clave para visualizar el reporte.")
         st.stop()
     st.success("Conexión Establecida")
