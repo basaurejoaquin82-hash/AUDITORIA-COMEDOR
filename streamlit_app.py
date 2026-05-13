@@ -3,104 +3,111 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-# 1. CONFIGURACIÓN ESTÉTICA
+# 1. CONFIGURACIÓN DE PÁGINA (Estilo Ejecutivo)
 st.set_page_config(
-    page_title="Auditoría Economato - Casa Rosada",
-    page_icon="⚖️",
+    page_title="Reporte de Auditoría - Casa Rosada",
+    page_icon="🇦🇷",
     layout="wide"
 )
 
-# Estilo Institucional
+# Diseño estético con CSS (Colores: Azul noche, Dorado y Blanco)
 st.markdown("""
     <style>
-    .main { background-color: #f8f9fa; }
-    .stMetric { background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; }
-    h1 { color: #1a2a6c; }
+    .main { background-color: #f4f7f9; }
+    .stMetric { 
+        background-color: #ffffff; 
+        padding: 25px; 
+        border-radius: 15px; 
+        border-top: 5px solid #1a2a6c; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .date-header {
+        background-color: #1a2a6c;
+        color: white;
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+        margin-bottom: 25px;
+        font-size: 20px;
+        font-weight: bold;
+    }
+    h1, h2 { color: #1a2a6c; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     </style>
     """, unsafe_allow_html=True)
 
 # 2. LOGIN
-st.sidebar.title("🔐 Acceso Institucional")
-user_role = st.sidebar.selectbox("Rol", ["Auditor", "Depósito", "Cocina"])
-password = st.sidebar.text_input("Contraseña", type="password")
+st.sidebar.markdown("### 🔒 Acceso Seguro")
+password = st.sidebar.text_input("Contraseña Institucional", type="password")
 
 if password == "1234":
     url = "https://docs.google.com/spreadsheets/d/1lqX4uss9CdW-QUqPlaBnvWoMePzuaBQ-89cfu7cDi3A/edit#gid=0"
     
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(spreadsheet=url, ttl="1m")
+        df = conn.read(spreadsheet=url, ttl="600")
         
-        # --- LIMPIEZA DE DATOS ---
-        # 1. Convertimos la 'Marca temporal' a formato fecha real para poder filtrar
+        # Limpieza inicial
         df['Marca temporal'] = pd.to_datetime(df['Marca temporal'], errors='coerce')
         df = df.dropna(subset=['Marca temporal'])
         
-        # 2. BORRAMOS TODO LO QUE DIGA "NO SOLICITA"
-        # Esto limpia tanto en platos principales como en desayunos
-        df = df[df['Principal/minutas'] != 'NO SOLICITA']
-        df = df[df['Tostados / Medialunas / Chipa / Cuadraditos Dulces'] != 'NO SOLICITA']
+        # Filtrado de "NO SOLICITA" (Limpieza total)
+        df = df[~df['Principal/minutas'].str.contains('NO SOLICITA', na=False, case=False)]
+        df = df[~df['Tostados / Medialunas / Chipa / Cuadraditos Dulces'].str.contains('NO SOLICITA', na=False, case=False)]
 
-        # --- FILTRO DE TRAZABILIDAD TEMPORAL ---
+        # --- FILTRO DE FECHAS EN SIDEBAR ---
         st.sidebar.markdown("---")
-        st.sidebar.subheader("📅 Rango de Auditoría")
-        min_fecha = df['Marca temporal'].min().date()
-        max_fecha = df['Marca temporal'].max().date()
+        min_f, max_f = df['Marca temporal'].min().date(), df['Marca temporal'].max().date()
         
-        rango_fechas = st.sidebar.date_input(
-            "Seleccioná el período:",
-            value=(min_fecha, max_fecha),
-            min_value=min_fecha,
-            max_value=max_fecha
-        )
+        st.sidebar.subheader("📅 Rango de Análisis")
+        rango = st.sidebar.date_input("Seleccione período:", value=(min_f, max_f), min_value=min_f, max_value=max_f)
 
-        # Aplicar el filtro de fechas si se seleccionan ambas
-        if len(rango_fechas) == 2:
-            inicio, fin = rango_fechas
-            mask = (df['Marca temporal'].dt.date >= inicio) & (df['Marca temporal'].dt.date <= fin)
-            df_filtrado = df.loc[mask]
-        else:
-            df_filtrado = df
+        if len(rango) == 2:
+            inicio, fin = rango
+            df_f = df[(df['Marca temporal'].dt.date >= inicio) & (df['Marca temporal'].dt.date <= fin)]
+            
+            # --- HEADER DE FECHAS PROLIJO ---
+            st.markdown(f"""<div class="date-header">📊 REPORTE DE CONSUMO: {inicio.strftime('%d/%m/%Y')} al {fin.strftime('%d/%m/%Y')}</div>""", unsafe_allow_html=True)
+            
+            # --- DASHBOARD ---
+            tab1, tab2, tab3 = st.tabs(["📈 Resumen Ejecutivo", "👥 Detalle por Funcionario", "📋 Auditoría de Datos"])
 
-        st.title("⚖️ Panel de Control y Auditoría")
-        st.caption(f"Mostrando información desde {rango_fechas[0]} hasta {rango_fechas[1] if len(rango_fechas)>1 else '...'}")
+            with tab1:
+                # Métricas Principales en Tarjetas
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Pedidos Totales", f"{len(df_f)}", help="Total de raciones despachadas")
+                m2.metric("Plato Principal", f"{df_f['Principal/minutas'].mode()[0] if not df_f.empty else 'N/A'}")
+                m3.metric("Infusiones/Dulces", f"{df_f['Tostados / Medialunas / Chipa / Cuadraditos Dulces'].mode()[0] if not df_f.empty else 'N/A'}")
+                m4.metric("Sector Mayoritario", f"{df_f['Sector'].mode()[0] if not df_f.empty else 'N/A'}")
 
-        tab1, tab2, tab3 = st.tabs(["📊 Dashboard de Consumo", "🔍 Trazabilidad de Funcionarios", "📋 Datos Crudos"])
+                st.markdown("### 📊 Tendencias de Consumo")
+                
+                col_left, col_right = st.columns(2)
+                with col_left:
+                    st.write("**Top 10 Platos Principales**")
+                    st.bar_chart(df_f['Principal/minutas'].value_counts().head(10), color="#1a2a6c")
+                
+                with col_right:
+                    st.write("**Consumo por Sector**")
+                    st.bar_chart(df_f['Sector'].value_counts(), color="#D4AF37")
 
-        with tab1:
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Pedidos Reales", len(df_filtrado))
-            with col2:
-                top_p = df_filtrado['Principal/minutas'].mode()[0] if not df_filtrado.empty else "N/A"
-                st.metric("Plato Estrella", top_p)
-            with col3:
-                sector = df_filtrado['Sector'].mode()[0] if not df_filtrado.empty else "N/A"
-                st.metric("Sector con más pedidos", sector)
+                st.markdown("---")
+                st.write("**Despacho de Mozos y Personal de Cocina**")
+                st.dataframe(df_f[['Mozo/a', 'Personal de despacho cocina']].value_counts().reset_index(name='Cantidad'), use_container_width=True)
 
-            st.markdown("---")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.write("**Consumo de Platos Principales**")
-                st.bar_chart(df_filtrado['Principal/minutas'].value_counts(), color="#1a2a6c")
-            with c2:
-                st.write("**Consumo de Panadería/Dulces**")
-                st.bar_chart(df_filtrado['Tostados / Medialunas / Chipa / Cuadraditos Dulces'].value_counts(), color="#c7a17a")
+            with tab2:
+                st.subheader("🔍 Trazabilidad Individual")
+                nombre = st.text_input("Ingrese nombre o apellido del funcionario:")
+                if nombre:
+                    res = df_f[df_f['Funcionario'].str.contains(nombre, case=False, na=False)]
+                    st.dataframe(res[['Marca temporal', 'Funcionario', 'Sector', 'Principal/minutas', 'Guarnición']], use_container_width=True)
 
-        with tab2:
-            st.subheader("Buscador por Funcionario")
-            nombre = st.text_input("Escribí el nombre del funcionario:")
-            if nombre:
-                res = df_filtrado[df_filtrado['Funcionario'].str.contains(nombre, case=False, na=False)]
-                st.dataframe(res, use_container_width=True)
-
-        with tab3:
-            st.subheader("Listado Detallado")
-            st.write("Esta tabla muestra los registros filtrados por el rango de fechas seleccionado.")
-            st.dataframe(df_filtrado, use_container_width=True)
+            with tab3:
+                st.subheader("📋 Base de Datos de Auditoría")
+                st.write(f"Se visualizan {len(df_f)} registros procesados.")
+                st.dataframe(df_f, use_container_width=True)
 
     except Exception as e:
-        st.error(f"Hubo un error al procesar los datos: {e}")
+        st.error(f"Error en la estructura de datos: {e}")
 
 else:
-    st.warning("Por favor, ingrese la contraseña para acceder al sistema.")
+    st.info("🇦🇷 Sistema de Auditoría Interna - Inicie sesión para continuar.")
